@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VISOR MULTI-SERIES REMOTO</title>
+    <style>
+        /* -------------------------------------- */
+        /* ESTILOS GLOBALES Y DASHBOARD */
+        /* -------------------------------------- */
+        :root { --bg-color: #212121; --text-color: #EAEAEA; --primary-color: #333; --main-series-color: #FFC107; }
+        html, body {
+            overflow-x: hidden !important; 
+            width: 100% !important; 
+            margin: 0 !important;
+            padding: 0 !important;
+            min-width: 100% !important; 
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; min-height: 100vh; }
+        
+        .page-wrapper { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .hero-banner { background: #1c1c1c; height: 100px; display: flex; justify-content: center; align-items: center; text-align: center; border-radius: 8px; margin-bottom: 30px; }
+        .hero-banner h1 { color: var(--main-series-color); font-size: 1.8em; margin: 0; }
+        
+        .series-section-title { font-size: 1.6em; color: var(--main-series-color); margin-top: 35px; border-bottom: 2px solid var(--main-series-color); padding-bottom: 5px; }
+        .chapter-list-dynamic { list-style: none; padding: 0; margin-top: 20px; }
+        .chapter-list-dynamic li { background-color: var(--primary-color); margin-bottom: 8px; border-radius: 4px; transition: background-color 0.2s; display: flex; }
+        .chapter-list-dynamic li:hover { background-color: #444; }
+        .chapter-list-dynamic a { display: block; padding: 15px; font-size: 1.1em; color: var(--text-color); text-decoration: none; flex-grow: 1; }
+        
+        /* -------------------------------------- */
+        /* ESTILOS DEL VISOR (CON BOTONES) */
+        /* -------------------------------------- */
+        #viewer-section { background-color: #1a1a1a; min-height: 100vh; }
+        #manga-viewer { 
+            padding-top: 70px; /* Espacio para el menú superior */
+            padding-bottom: 70px; /* Espacio para el menú inferior */
+            cursor: pointer; 
+        }
+        .manga-page { 
+            display: block; max-width: 100%; width: 100%; height: auto; 
+            margin: 0 auto 10px auto; 
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 2. Contenedores de botones (Superior e Inferior) */
+        #menu-container-top, #menu-container-bottom {
+            position: fixed; left: 0; right: 0; width: 100%; background-color: #0d0d0d;
+            z-index: 1000; box-shadow: 0 0 5px rgba(0, 0, 0, 0.7); padding: 8px 15px; 
+            display: flex; justify-content: center; align-items: center;
+            opacity: 1; visibility: visible; pointer-events: auto;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        #menu-container-top { top: 0; transform: translateY(0); }
+        #menu-container-bottom { bottom: 0; transform: translateY(0); }
+
+        /* CLASE 1: OCULTAR Y MOVER FUERA DE PANTALLA */
+        .controls-off-screen-top { transform: translateY(-100%); opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+        .controls-off-screen-bottom { transform: translateY(100%); opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+        
+        /* 3. Botones de Menú Principales (☰ y ⚙️) */
+        .menu-toggle-btn { background-color: #333; color: white; border: none; padding: 12px 20px; font-size: 1.2em; cursor: pointer; border-radius: 5px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); width: 100%; }
+        
+        /* 4. Barra de Despliegue (Flotante y Centrada) */
+        #dropdown-menu { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 90%; max-width: 350px; background-color: #1c1c1c; padding: 20px;
+            border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.7);
+            flex-direction: column; gap: 15px; display: flex;
+            opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s;
+            z-index: 1001; /* Asegurar que esté sobre los menús fijos */
+        }
+        .visible-menu { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+
+        button { padding: 12px; border: none; cursor: pointer; border-radius: 4px; font-size: 1em; width: 100%; }
+        #menu-title { font-size: 1.3em; font-weight: bold; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 10px; }
+        
+        /* Botones de navegación */
+        #menu-buttons { display: flex; gap: 10px; width: 100%; }
+        #prev-chapter-btn { background-color: #FFC107; color: black; flex-grow: 1; } 
+        #next-chapter-btn { background-color: #4CAF50; flex-grow: 1; } 
+        
+        /* Estilos de Auto-scroll */
+        #scroll-controls-group { background-color: #2a2a2a; padding: 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 10px; }
+        #autoscroll-label { display: flex; align-items: center; font-size: 1.1em; }
+        #autoscroll-toggle { margin-right: 10px; transform: scale(1.3); }
+        #scroll-speed-controls { display: flex; align-items: center; justify-content: space-between; }
+        input[type="range"] { margin: 0 10px; width: 60%; cursor: pointer; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard-section" class="page-wrapper">
+        <div class="hero-banner">
+            <h1>MIS SERIES EN LÍNEA</h1>
+        </div>
+
+        <h2 style="color:var(--main-series-color);">CAPÍTULOS DISPONIBLES</h2>
+        <div id="series-list-container">
+            <ul id="chapter-list-container" class="chapter-list-dynamic">
+                <li><a href="#">Cargando el catálogo de series remotas...</a></li>
+            </ul>
+        </div>
+        
+        <p style="font-size: 0.8em; color: #777; margin-top: 30px;">
+            Visor servido por Ngrok.
+        </p>
+    </div>
+
+    <div id="viewer-section" class="hidden">
+        
+        <div id="menu-container-top">
+            <button id="menu-toggle-btn-top" class="menu-toggle-btn">🏠 Volver al Panel</button>
+        </div>
+
+        <div id="dropdown-menu"> 
+            
+            <div id="menu-title">Cargando Título...</div>
+            
+            <div id="menu-buttons">
+                <button id="prev-chapter-btn" disabled>◀ Anterior</button>
+                <button id="next-chapter-btn" disabled>Siguiente ➡️</button>
+            </div>
+            
+            <div id="scroll-controls-group">
+                <label id="autoscroll-label">
+                    <input id="autoscroll-toggle" type="checkbox" /> Activar Auto-Scroll
+                </label>
+                <div id="scroll-speed-controls">
+                    <label>Velocidad:</label>
+                    <input id="scroll-speed" max="10" type="range" value="5" />
+                </div>
+            </div>
+        </div>
+        
+        <main id="manga-viewer"></main>
+
+        <div id="menu-container-bottom">
+            <button id="menu-toggle-btn-bottom" class="menu-toggle-btn">⚙️ Menú</button>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================
+        // 🚨🚨 CONFIGURACIÓN CRÍTICA (CATÁLOGO FINAL) 🚨🚨
+        // ====================================================================
+        const BASE_PATH = 'mi_serie_completa/'; 
+        
+        const REMOTE_SERIES_CATALOG = {
+            'emperador_magico': {
+                'cap12': 17, 'cap11': 17, 'cap10': 15, 'cap9': 13,
+                'cap8': 17, 'cap7': 21, 'cap6': 54, 'cap5': 61
+            },
+            'mancion_post_apocaliptica': {
+                'cap510': 12, 'cap509': 12, 'cap508': 12, 'cap507': 12,
+                'cap506': 12, 'cap505': 12, 'cap504': 12, 'cap503': 12,
+                'cap502': 12, 'cap500': 12, 'cap499': 12, 'cap498': 12,
+                'cap497': 12, 'cap496': 12, 'cap495': 12
+            },
+            'maton_a_cargo': {
+                'cap80': 49, 'cap79': 55, 'cap78': 63
+            }
+        };
+
+        // ====================================================================
+        // LÓGICA DE LA APLICACIÓN Y CONTROL DE VISOR
+        // ====================================================================
+
+        // --- Variables de Estado ---
+        let seriesData = {}; 
+        let currentSeriesTitle = null;
+        let currentChapterId = null;
+        let currentChapterIndex = -1; // Índice del capítulo actual dentro de su serie
+        let controlsVisible = true;
+        let menuOpen = false; 
+        let scrollInterval;
+        
+        // --- Elementos DOM ---
+        const dashboardSection = document.getElementById('dashboard-section');
+        const viewerSection = document.getElementById('viewer-section');
+        const mangaViewer = document.getElementById('manga-viewer');
+        const seriesListContainer = document.getElementById('series-list-container');
+        
+        const dropdownMenu = document.getElementById('dropdown-menu'); 
+        const menuContainerTop = document.getElementById('menu-container-top'); 
+        const menuContainerBottom = document.getElementById('menu-container-bottom'); 
+        const menuToggleBtnTop = document.getElementById('menu-toggle-btn-top');
+        const menuToggleBtnBottom = document.getElementById('menu-toggle-btn-bottom');
+        const autoscrollToggle = document.getElementById('autoscroll-toggle');
+        const scrollSpeedRange = document.getElementById('scroll-speed');
+        const menuTitle = document.getElementById('menu-title');
+        const prevChapterBtn = document.getElementById('prev-chapter-btn');
+        const nextChapterBtn = document.getElementById('next-chapter-btn');
+
+        // --- Funciones de Control de Vistas y Menús ---
+        
+        const stopAutoscroll = () => {
+            if (scrollInterval) clearInterval(scrollInterval);
+            autoscrollToggle.checked = false;
+        };
+
+        const showView = (viewName, chapterKey = null) => {
+            stopAutoscroll(); // Asegura detener el scroll al cambiar de vista
+            dashboardSection.classList.add('hidden');
+            viewerSection.classList.add('hidden');
+            closeMenu(false); // Cierra el menú sin mostrar los controles si la vista es viewer
+
+            if (viewName === 'dashboard') {
+                dashboardSection.classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } else if (viewName === 'viewer') {
+                viewerSection.classList.remove('hidden');
+                
+                if (chapterKey) {
+                    const [seriesTitle, chapterId] = chapterKey.split('|');
+                    currentSeriesTitle = seriesTitle;
+                    currentChapterId = chapterId;
+                    
+                    // Encontrar el índice del capítulo actual para la navegación
+                    const chapters = seriesData[currentSeriesTitle];
+                    currentChapterIndex = chapters.findIndex(c => c.id === chapterId);
+                }
+                
+                if(currentSeriesTitle && currentChapterId) {
+                    loadChapterIntoViewer(currentSeriesTitle, currentChapterId);
+                }
+            }
+        };
+        
+        const hideControls = () => {
+            menuContainerTop.classList.add('controls-off-screen-top');
+            menuContainerBottom.classList.add('controls-off-screen-bottom');
+            controlsVisible = false;
+        };
+
+        const showControls = () => { 
+            menuContainerTop.classList.remove('controls-off-screen-top');
+            menuContainerBottom.classList.remove('controls-off-screen-bottom');
+            controlsVisible = true;
+        };
+        
+        const closeMenu = (showFixedControls = true) => {
+            dropdownMenu.classList.remove('visible-menu');
+            menuOpen = false;
+            
+            if (showFixedControls && !autoscrollToggle.checked) {
+                showControls();
+            }
+        }
+        
+        const toggleMenu = () => {
+            if (menuOpen) {
+                closeMenu();
+            } else {
+                menuOpen = true;
+                dropdownMenu.classList.add('visible-menu'); 
+                showControls(); // Asegura que los botones fijos estén visibles cuando el menú está abierto
+            }
+        };
+
+        // --- Event Listeners de Menús y Visor ---
+        menuToggleBtnTop.addEventListener('click', () => showView('dashboard')); // Botón 'Home' superior
+        menuToggleBtnBottom.addEventListener('click', (e) => { // Botón 'Menú' inferior
+            e.stopPropagation(); 
+            toggleMenu();
+        });
+        
+        dropdownMenu.addEventListener('click', (e) => e.stopPropagation()); // Evitar cerrar menú al hacer clic en él
+        
+        document.body.addEventListener('click', (e) => {
+            // 1. Cierra menú flotante si está abierto
+            if (menuOpen) {
+                closeMenu(); 
+                return; 
+            }
+            
+            // 2. Oculta/Muestra controles fijos si está en Auto-Scroll
+            if (autoscrollToggle.checked) {
+                if (controlsVisible) {
+                    hideControls(); 
+                } else {
+                    showControls();
+                }
+            }
+        });
+        
+        // --- Lógica de Auto-Scroll ---
+
+        const startAutoscroll = (speedValue) => {
+            closeMenu(false); // Cierra el menú sin mostrar los controles (porque ocultaremos)
+            hideControls(); 
+            
+            const intervalTime = 100 - (speedValue * 9); 
+            const scrollAmount = 3; 
+            if (scrollInterval) clearInterval(scrollInterval);
+            scrollInterval = setInterval(() => {
+                window.scrollBy(0, scrollAmount);
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight) {
+                    stopAutoscroll();
+                    showControls(); // Muestra los botones al terminar
+                }
+            }, intervalTime);
+        };
+
+        autoscrollToggle.addEventListener('change', (e) => {
+            if (e.target.checked) { 
+                startAutoscroll(scrollSpeedRange.value); 
+            } else { 
+                stopAutoscroll();
+                showControls(); // Muestra los botones al desactivar
+            }
+        });
+        scrollSpeedRange.addEventListener('input', (e) => {
+            if (autoscrollToggle.checked) { startAutoscroll(e.target.value); }
+        });
+
+
+        // --- Lógica de Navegación (Previo/Siguiente) ---
+
+        const updateNavigationButtons = () => {
+            const chapters = seriesData[currentSeriesTitle];
+            
+            // Botón Anterior
+            if (currentChapterIndex > 0) {
+                prevChapterBtn.disabled = false;
+                const prevChapter = chapters[currentChapterIndex - 1];
+                prevChapterBtn.textContent = `◀ Cap. ${prevChapter.id}`;
+            } else {
+                prevChapterBtn.disabled = true;
+                prevChapterBtn.textContent = `◀ Anterior`;
+            }
+
+            // Botón Siguiente
+            if (currentChapterIndex < chapters.length - 1) {
+                nextChapterBtn.disabled = false;
+                const nextChapter = chapters[currentChapterIndex + 1];
+                nextChapterBtn.textContent = `Cap. ${nextChapter.id} ➡️`;
+            } else {
+                nextChapterBtn.disabled = true;
+                nextChapterBtn.textContent = `Siguiente ➡️`;
+            }
+        };
+
+        const navigateChapter = (direction) => {
+            const chapters = seriesData[currentSeriesTitle];
+            let newIndex = currentChapterIndex + direction;
+
+            if (newIndex >= 0 && newIndex < chapters.length) {
+                const nextChapter = chapters[newIndex];
+                const chapterKey = `${currentSeriesTitle}|${nextChapter.id}`;
+                showView('viewer', chapterKey); // Recarga el visor con el nuevo capítulo
+            }
+        };
+        
+        prevChapterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeMenu();
+            navigateChapter(-1); // -1 para ir al capítulo anterior (índice menor)
+        });
+
+        nextChapterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeMenu();
+            navigateChapter(1); // 1 para ir al capítulo siguiente (índice mayor)
+        });
+
+        // --- Lógica de Inicialización y Renderizado ---
+
+        function initializeRemoteSeries() {
+            seriesData = {};
+            
+            for (const seriesTitle in REMOTE_SERIES_CATALOG) {
+                const chaptersObject = REMOTE_SERIES_CATALOG[seriesTitle];
+                seriesData[seriesTitle] = [];
+                
+                for (const chapterName in chaptersObject) {
+                    const numPages = chaptersObject[chapterName];
+                    let urls = [];
+                    for (let i = 1; i <= numPages; i++) {
+                        // 🟢 AJUSTE CLAVE: Se usa 'page_ (X).jpg'
+                        const pageUrl = `${BASE_PATH}${seriesTitle}/${chapterName}/page_ (${i}).jpg`; 
+                        urls.push(pageUrl);
+                    }
+                    
+                    seriesData[seriesTitle].push({
+                        title: chapterName,
+                        id: chapterName,
+                        series: seriesTitle,
+                        urls: urls 
+                    });
+                }
+                
+                // Ordenar capítulos del más nuevo (índice alto) al más viejo (índice bajo)
+                // Usamos 'reverse' después de sortearlos alfabéticamente/numéricamente.
+                seriesData[seriesTitle].sort((a, b) => 
+                    a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+                ).reverse(); 
+            }
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            seriesListContainer.innerHTML = '';
+            const seriesTitles = Object.keys(seriesData).sort();
+
+            if (seriesTitles.length === 0) {
+                seriesListContainer.innerHTML = '<ul class="chapter-list-dynamic"><li><a href="#">Error: Catálogo vacío.</a></li></ul>';
+                return;
+            }
+
+            seriesTitles.forEach(seriesTitle => {
+                const chapters = seriesData[seriesTitle];
+
+                const seriesTitleElement = document.createElement('h2');
+                seriesTitleElement.className = 'series-section-title';
+                seriesTitleElement.textContent = seriesTitle.toUpperCase().replace(/_/g, ' '); 
+                seriesListContainer.appendChild(seriesTitleElement);
+
+                const chapterList = document.createElement('ul');
+                chapterList.className = 'chapter-list-dynamic';
+
+                chapters.forEach((chapter) => {
+                    const item = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = "#"; 
+                    link.textContent = `${chapter.id.toUpperCase()} (${chapter.urls.length} páginas)`;
+                    const chapterKey = `${seriesTitle}|${chapter.id}`;
+                    
+                    link.onclick = (e) => {
+                        e.preventDefault();
+                        showView('viewer', chapterKey);
+                    };
+                    item.appendChild(link);
+                    chapterList.appendChild(item);
+                });
+                seriesListContainer.appendChild(chapterList);
+            });
+        }
+        
+        function loadChapterIntoViewer(seriesTitle, chapterId) {
+            const chaptersArray = seriesData[seriesTitle];
+            const chapter = chaptersArray.find(c => c.id === chapterId);
+            if (!chapter) return;
+
+            window.scrollTo(0, 0);
+            mangaViewer.innerHTML = ''; // Limpiar el visor
+            
+            menuTitle.textContent = `${seriesTitle.toUpperCase().replace(/_/g, ' ')} - ${chapterId.toUpperCase()}`;
+            
+            const fragment = document.createDocumentFragment();
+
+            chapter.urls.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = `${seriesTitle} - ${chapterId}`;
+                img.className = 'manga-page';
+                img.loading = 'lazy'; 
+                fragment.appendChild(img);
+            });
+            
+            mangaViewer.appendChild(fragment);
+            updateNavigationButtons(); // Actualizar botones de Prev/Next
+            showControls(); // Mostrar controles fijos al cargar un nuevo capítulo
+        }
+
+        // --- INICIALIZACIÓN ---
+        initializeRemoteSeries(); 
+    </script>
+</body>
+</html>
