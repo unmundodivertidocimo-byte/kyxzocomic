@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor Remoto de Series</title>
+    <style>
+        /* (El CSS se mantiene igual por simplicidad, no lo incluyo aquí para no repetir) */
+        /* [ ... ESTILOS CSS DEL ARCHIVO ANTERIOR ... ] */
+        :root { /* Esto es solo para que el código sea funcional */
+            --bg-color: #212121; --text-color: #EAEAEA; --primary-color: #333; --accent-color: #BB86FC; --danger-color: #cf6679; --main-series-color: #FFC107; 
+        }
+        body {
+            background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; margin: 0; overflow-x: hidden !important; 
+        }
+        .page-wrapper { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .hero-banner { background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url('https://i.imgur.com/uR1l3gL.jpg'); background-size: cover; background-position: center; height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-radius: 8px; margin-bottom: 30px; }
+        .hero-banner h1 { color: white; font-size: 1.8em; margin: 0; padding: 0 10px; text-shadow: 2px 2px 5px #000; }
+        h2 { color: var(--text-color); border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 20px; }
+        .series-section-title { font-size: 1.6em; color: var(--main-series-color); margin-top: 35px; border-bottom: 2px solid var(--main-series-color); padding-bottom: 5px; }
+        .chapter-list-dynamic { list-style: none; padding: 0; margin-top: 20px; }
+        .chapter-list-dynamic li { background-color: var(--primary-color); margin-bottom: 8px; border-radius: 4px; transition: background-color 0.2s; display: flex; justify-content: space-between; align-items: center; padding: 0; }
+        .chapter-list-dynamic li:hover { background-color: #444; }
+        .chapter-list-dynamic a { display: block; padding: 15px; font-size: 1.1em; color: var(--text-color); text-decoration: none; flex-grow: 1; }
+        #viewer-section { background-color: #1a1a1a; color: #f0f0f0; min-height: 100vh; }
+        #manga-viewer { width: 100%; max-width: 100%; margin: 0 auto; overflow-x: hidden; min-height: 100vh; padding-top: 70px; padding-bottom: 70px; cursor: pointer; }
+        .manga-page { display: block; max-width: 100%; width: 100%; height: auto; margin: 0 auto 10px auto; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); }
+        #menu-container-top, #menu-container-bottom { position: fixed; left: 0; right: 0; width: 100%; background-color: #0d0d0d; z-index: 1000; box-shadow: 0 0 5px rgba(0, 0, 0, 0.7); padding: 8px 15px; display: flex; justify-content: center; align-items: center; opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.3s, transform 0.3s; }
+        #menu-container-top { top: 0; transform: translateY(0); }
+        #menu-container-bottom { bottom: 0; transform: translateY(0); }
+        .controls-off-screen-top { transform: translateY(-100%); opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+        .controls-off-screen-bottom { transform: translateY(100%); opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+        .menu-toggle-btn { background-color: #333; color: white; border: none; padding: 12px 20px; font-size: 1.2em; cursor: pointer; border-radius: 5px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); width: 100%; }
+        #dropdown-menu { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 350px; background-color: #1c1c1c; padding: 20px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.7); flex-direction: column; gap: 15px; display: flex; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s; z-index: 1001; }
+        .visible-menu { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+        button { padding: 12px; border: none; cursor: pointer; border-radius: 4px; font-size: 1em; width: 100%; }
+        #menu-title { font-size: 1.3em; font-weight: bold; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 10px; }
+        #series-title-menu { color: var(--main-series-color); margin-bottom: 5px; }
+        #chapter-selector { padding: 10px; width: 100%; background-color: #333; color: white; border: 1px solid #444; border-radius: 4px; font-size: 1em; cursor: pointer; }
+        #scroll-controls-group { background-color: #2a2a2a; padding: 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 10px; }
+        #scroll-speed-controls { display: flex; align-items: center; justify-content: space-between; }
+        input[type="range"] { margin: 0 10px; width: 60%; cursor: pointer; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard-section" class="page-wrapper">
+        
+        <div class="hero-banner">
+            <h1>VISOR REMOTO DE MÚLTIPLES SERIES</h1>
+            <p style="color:white; margin-top:10px;">¡Comparte tus series con quien quieras!</p>
+        </div>
+
+        <h2 style="color:var(--main-series-color);">CAPÍTULOS DISPONIBLES</h2>
+        <div id="series-list-container">
+            <ul id="chapter-list-container" class="chapter-list-dynamic">
+                <li><a href="#">Cargando el catálogo de series remotas...</a></li>
+            </ul>
+        </div>
+        
+        <p style="font-size: 0.8em; color: #777; margin-top: 30px;">
+            ⚠️ **NOTA:** Este visor lee los archivos directamente desde el servidor web.
+        </p>
+
+    </div>
+
+    <div id="viewer-section" class="hidden">
+        
+        <div id="menu-container-top">
+            <button id="menu-toggle-btn-top" class="menu-toggle-btn">🏠 Volver al Panel</button>
+        </div>
+
+        <div id="dropdown-menu"> 
+            
+            <div id="menu-title">
+                <div id="series-title-menu"></div>
+                <div id="chapter-title-menu"></div>
+            </div>
+            
+            <div style="font-weight: bold; margin-bottom: 5px;">Selección Rápida de Capítulo:</div>
+            <select id="chapter-selector"></select>
+
+            <button id="download-btn" style="background-color: #007bff;">⬇️ Descargar (No Funcional Remotamente)</button>
+            
+            <div id="scroll-controls-group">
+                <label id="autoscroll-label">
+                    <input id="autoscroll-toggle" type="checkbox" /> Activar Auto-Scroll
+                </label>
+                <div id="scroll-speed-controls">
+                    <label>Velocidad:</label>
+                    <input id="scroll-speed" max="10" type="range" value="5" />
+                </div>
+            </div>
+        </div>
+
+        <main id="manga-viewer">
+            </main>
+
+        <div id="menu-container-bottom">
+            <button id="menu-toggle-btn-bottom" class="menu-toggle-btn">⚙️ Menú</button>
+        </div>
+    </div>
+
+
+    <script>
+        // ====================================================================
+        // CONFIGURACIÓN REMOTA
+        // ====================================================================
+
+        // Base URL donde subiste tus archivos, ej: 'mi_serie_completa/'
+        const BASE_PATH = 'mi_serie_completa/'; 
+        
+        // Estructura de Catálogo para la Versión Remota
+        // DEBES definir aquí qué capítulos y cuántas páginas tiene cada uno.
+        // El formato es: [Título de Serie]: { [ID Capítulo]: numPaginas, ... }
+        const REMOTE_SERIES_CATALOG = {
+            'emperador_magico': {
+                'cap5': 10,  // cap5 tiene 10 imágenes (page_(1).jpg a page_(10).jpg)
+                // 'cap6': 15,
+                // 'cap7': 20
+            },
+            'mancion_post_apocaliptica': {
+                'cap495': 8,
+                'cap496': 9
+            },
+            'maton_a_cargo': {
+                'cap78': 12
+            }
+        };
+
+        // ====================================================================
+        // LÓGICA DE LA APLICACIÓN (ADAPTADA A REMOTO)
+        // ====================================================================
+
+        let seriesData = {}; // Objeto que contendrá los datos reformateados
+        let currentSeriesTitle = null;
+        let currentChapterId = null;
+        let scrollInterval;
+        let menuOpen = false;
+        let controlsVisible = true;
+        
+        // Elementos DOM (iguales)
+        const dashboardSection = document.getElementById('dashboard-section');
+        const seriesListContainer = document.getElementById('series-list-container');
+        const viewerSection = document.getElementById('viewer-section');
+        const mangaViewer = document.getElementById('manga-viewer');
+        const autoscrollToggle = document.getElementById('autoscroll-toggle');
+        const scrollSpeedRange = document.getElementById('scroll-speed');
+        const dropdownMenu = document.getElementById('dropdown-menu');
+        const menuContainerTop = document.getElementById('menu-container-top');
+        const menuContainerBottom = document.getElementById('menu-container-bottom');
+        const menuToggleBtnTop = document.getElementById('menu-toggle-btn-top');
+        const menuToggleBtnBottom = document.getElementById('menu-toggle-btn-bottom');
+        const chapterSelector = document.getElementById('chapter-selector');
+        const seriesTitleMenu = document.getElementById('series-title-menu');
+        const chapterTitleMenu = document.getElementById('chapter-title-menu');
+
+        
+        // --- Vistas y Controles (Iguales) ---
+        function showView(viewName, chapterKey = null) {
+            dashboardSection.classList.add('hidden');
+            viewerSection.classList.add('hidden');
+            stopAutoscroll(); 
+
+            if (viewName === 'dashboard') {
+                dashboardSection.classList.remove('hidden');
+            } else if (viewName === 'viewer') {
+                viewerSection.classList.remove('hidden');
+                
+                if (chapterKey) {
+                    const [seriesTitle, chapterId] = chapterKey.split('|');
+                    currentSeriesTitle = seriesTitle;
+                    currentChapterId = chapterId;
+                }
+                
+                if(currentSeriesTitle && currentChapterId) {
+                    loadChapterIntoViewer(currentSeriesTitle, currentChapterId);
+                    populateChapterSelector();
+                }
+            }
+        }
+        menuToggleBtnTop.addEventListener('click', () => showView('dashboard'));
+        
+        // --- Lógica del Menú y Auto-Scroll (Iguales) ---
+        const closeMenu = () => { dropdownMenu.classList.remove('visible-menu'); menuOpen = false; if (!autoscrollToggle.checked) { showControls(); } };
+        const toggleMenu = () => { if (menuOpen) { closeMenu(); } else { menuOpen = true; dropdownMenu.classList.add('visible-menu'); showControls(); } };
+        menuToggleBtnBottom.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+        dropdownMenu.addEventListener('click', (e) => { e.stopPropagation(); });
+        
+        document.body.addEventListener('click', (e) => {
+            if (menuContainerTop.contains(e.target) || menuContainerBottom.contains(e.target) || dropdownMenu.contains(e.target)) return;
+            if (menuOpen) { closeMenu(); return; }
+            if (autoscrollToggle.checked) { controlsVisible ? hideControls() : showControls(); }
+        });
+        
+        const hideControls = () => { menuContainerTop.classList.add('controls-off-screen-top'); menuContainerBottom.classList.add('controls-off-screen-bottom'); controlsVisible = false; };
+        const showControls = () => { menuContainerTop.classList.remove('controls-off-screen-top'); menuContainerBottom.classList.remove('controls-off-screen-bottom'); controlsVisible = true; };
+
+        function stopAutoscroll() {
+            if (scrollInterval) clearInterval(scrollInterval);
+            autoscrollToggle.checked = false;
+        }
+
+        const startAutoscroll = (speedValue) => {
+            closeMenu(); hideControls(); 
+            const intervalTime = 100 - (speedValue * 9); 
+            const scrollAmount = 3; 
+            if (scrollInterval) clearInterval(scrollInterval);
+            scrollInterval = setInterval(() => {
+                window.scrollBy(0, scrollAmount);
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight) {
+                    autoscrollToggle.checked = false;
+                    clearInterval(scrollInterval);
+                    showControls();
+                }
+            }, intervalTime);
+        };
+        
+        autoscrollToggle.addEventListener('change', (e) => {
+            if (e.target.checked) { startAutoscroll(scrollSpeedRange.value); } else { stopAutoscroll(); showControls(); }
+        });
+        scrollSpeedRange.addEventListener('input', (e) => {
+            if (autoscrollToggle.checked) { startAutoscroll(e.target.value); }
+        });
+
+        // ======================= LÓGICA DE DETECCIÓN Y RENDERIZADO (REMOTA) =======================
+        
+        /**
+         * Transforma el catálogo estático en la estructura dinámica que usa el visor.
+         */
+        function initializeRemoteSeries() {
+            seriesData = {};
+            
+            for (const seriesTitle in REMOTE_SERIES_CATALOG) {
+                const chaptersObject = REMOTE_SERIES_CATALOG[seriesTitle];
+                
+                seriesData[seriesTitle] = [];
+                
+                for (const chapterName in chaptersObject) {
+                    const numPages = chaptersObject[chapterName];
+                    
+                    // Crea una lista de URLs de las páginas
+                    let urls = [];
+                    for (let i = 1; i <= numPages; i++) {
+                        // Construye la URL basado en la convención de nombres: page_(i).jpg
+                        // Ejemplo: mi_serie_completa/emperador_magico/cap5/page_(1).jpg
+                        const pageUrl = `${BASE_PATH}${seriesTitle}/${chapterName}/page_(${i}).jpg`; 
+                        urls.push(pageUrl);
+                    }
+                    
+                    seriesData[seriesTitle].push({
+                        title: chapterName,
+                        id: chapterName,
+                        series: seriesTitle,
+                        urls: urls // Ahora son URLs, no File objects
+                    });
+                }
+                
+                // Ordenar capítulos (opcional, si los IDs no son numéricos)
+                seriesData[seriesTitle].sort((a, b) => 
+                    a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+                );
+            }
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            seriesListContainer.innerHTML = '';
+            const seriesTitles = Object.keys(seriesData).sort();
+
+            if (seriesTitles.length === 0) {
+                seriesListContainer.innerHTML = '<ul class="chapter-list-dynamic"><li><a href="#">No se encontraron series. Revisa el objeto REMOTE_SERIES_CATALOG en el código.</a></li></ul>';
+                return;
+            }
+
+            seriesTitles.forEach(seriesTitle => {
+                const chapters = seriesData[seriesTitle];
+
+                const seriesTitleElement = document.createElement('h2');
+                seriesTitleElement.className = 'series-section-title';
+                seriesTitleElement.textContent = seriesTitle.toUpperCase().replace(/_/g, ' '); 
+                seriesListContainer.appendChild(seriesTitleElement);
+
+                const chapterList = document.createElement('ul');
+                chapterList.className = 'chapter-list-dynamic';
+                const sortedChapters = [...chapters].reverse(); 
+
+                sortedChapters.forEach((chapter) => {
+                    const item = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = "#"; 
+                    link.textContent = `${chapter.title} (${chapter.urls.length} páginas)`; // Usa urls.length
+                    const chapterKey = `${seriesTitle}|${chapter.id}`;
+                    
+                    link.onclick = (e) => {
+                        e.preventDefault();
+                        showView('viewer', chapterKey);
+                    };
+                    item.appendChild(link);
+                    chapterList.appendChild(item);
+                });
+                seriesListContainer.appendChild(chapterList);
+            });
+        }
+        
+        /**
+         * Carga el capítulo en el visor usando las URLs remotas.
+         */
+        function loadChapterIntoViewer(seriesTitle, chapterId) {
+            const chaptersArray = seriesData[seriesTitle];
+            if (!chaptersArray) return;
+            
+            const chapter = chaptersArray.find(c => c.id === chapterId);
+            if (!chapter) return;
+
+            currentSeriesTitle = seriesTitle;
+            currentChapterId = chapterId;
+            
+            seriesTitleMenu.textContent = seriesTitle.toUpperCase().replace(/_/g, ' ');
+            chapterTitleMenu.textContent = chapter.title;
+
+            window.scrollTo(0, 0);
+            mangaViewer.innerHTML = `<h1 style="text-align:center; padding-top:100px; color: ${seriesTitleMenu.style.color};">${seriesTitle.toUpperCase().replace(/_/g, ' ')}</h1>
+                                     <h2 style="text-align:center; color: white;">${chapter.title} (${chapter.urls.length} imágenes)</h2>`;
+            
+            const fragment = document.createDocumentFragment();
+
+            // Usamos las URLs directamente
+            chapter.urls.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url; // <--- ¡Aquí está el cambio clave!
+                img.alt = chapter.title;
+                img.className = 'manga-page';
+                img.loading = 'lazy'; 
+                fragment.appendChild(img);
+            });
+            
+            mangaViewer.appendChild(fragment);
+        }
+
+        function populateChapterSelector() {
+            chapterSelector.innerHTML = '';
+            
+            if (!currentSeriesTitle || !seriesData[currentSeriesTitle]) return;
+            
+            const chapters = seriesData[currentSeriesTitle];
+
+            chapters.forEach(chapter => {
+                const option = document.createElement('option');
+                option.value = chapter.id;
+                option.textContent = `${chapter.title} (${chapter.urls.length} páginas)`;
+                if (chapter.id === currentChapterId) {
+                    option.selected = true;
+                }
+                chapterSelector.appendChild(option);
+            });
+        }
+        
+        chapterSelector.addEventListener('change', (e) => {
+            const newChapterId = e.target.value;
+            closeMenu(); 
+            loadChapterIntoViewer(currentSeriesTitle, newChapterId);
+        });
+
+        // --- INICIALIZACIÓN REMOTA ---
+        initializeRemoteSeries(); 
+    </script>
+</body>
+</html>
